@@ -1,5 +1,5 @@
 import { type NextPage } from "next";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import type { ColumnDef, RowData } from "@tanstack/react-table";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-table";
 import { api } from "../utils/api";
 import type { Person } from "@prisma/client";
+import { supabaseClient } from "../utils/supabase";
 
 declare module "@tanstack/react-table" {
   interface TableMeta<TData extends RowData> {
@@ -23,7 +24,35 @@ const CreatePerson = () => {
   const [lastName, setLastName] = useState("");
   const [age, setAge] = useState<number | string>("");
 
-  const { mutate: createPerson, isLoading } = api.person.create.useMutation();
+  const query = api.useContext();
+  const { mutate: createPerson, isLoading } = api.person.create.useMutation({
+    onMutate: async (newPerson) => {
+      // Cancel any outgoing refetches
+      // (so they don't overwrite our optimistic update)
+      await query.person.getAll.cancel();
+
+      // Snapshot the previous value
+      const prevData = query.person.getAll.getData();
+
+      // Optimistically update to the new value
+      query.person.getAll.setData(undefined, (old) => [
+        ...old,
+        { ...newPerson, id: "random" },
+      ]);
+
+      // Return a context object with the snapshotted value
+      return { prevData };
+    },
+    // If the mutation fails,
+    // use the context returned from onMutate to roll back
+    onError: (err, newTodo, context) => {
+      query.person.getAll.setData({}, context?.prevData);
+    },
+    // Always refetch after error or success:
+    onSettled: async () => {
+      await query.person.invalidate();
+    },
+  });
 
   const onSubmit = () => {
     createPerson(
@@ -124,6 +153,22 @@ function useSkipper() {
 const Home: NextPage = () => {
   const { data: persons } = api.person.getAll.useQuery();
   const { mutate: updatePerson } = api.person.update.useMutation();
+
+  const query = api.useContext();
+
+  useEffect(() => {
+    supabaseClient
+      .channel("custom-all-channel")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "Person" },
+        (payload) => {
+          console.log("Change received!", payload);
+          query.person.getAll.invalidate();
+        }
+      )
+      .subscribe();
+  }, []);
 
   const columns = React.useMemo<ColumnDef<Person>[]>(
     () => [
