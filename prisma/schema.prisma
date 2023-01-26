@@ -21,6 +21,17 @@ model Example {
     updatedAt DateTime @updatedAt
 }
 
+model Person {
+    id String @id @default(cuid())
+
+    firstName String
+    lastName  String
+    age       Int
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
 // Necessary for Next auth
 model Account {
     id                String  @id @default(cuid())
