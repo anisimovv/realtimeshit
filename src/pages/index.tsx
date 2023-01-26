@@ -35,8 +35,10 @@ const CreatePerson = () => {
       const prevData = query.person.getAll.getData();
 
       // Optimistically update to the new value
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       query.person.getAll.setData(undefined, (old) => [
-        ...old,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        ...(old as any),
         { ...newPerson, id: "random" },
       ]);
 
@@ -46,7 +48,7 @@ const CreatePerson = () => {
     // If the mutation fails,
     // use the context returned from onMutate to roll back
     onError: (err, newTodo, context) => {
-      query.person.getAll.setData({}, context?.prevData);
+      query.person.getAll.setData(undefined, context?.prevData);
     },
     // Always refetch after error or success:
     onSettled: async () => {
@@ -164,7 +166,7 @@ const Home: NextPage = () => {
         { event: "*", schema: "public", table: "Person" },
         (payload) => {
           console.log("Change received!", payload);
-          query.person.getAll.invalidate();
+          void query.person.getAll.invalidate();
         }
       )
       .subscribe();
