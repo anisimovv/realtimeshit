@@ -27,6 +27,9 @@ export const personRouter = createTRPCRouter({
       return await ctx.prisma.person.update({
         where: { id: input.id },
         data: { [input.data.field]: input.data.value },
+        include: {
+          organization: true,
+        },
       });
     }),
 });
